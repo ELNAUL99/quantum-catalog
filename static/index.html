@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quantum Measurement Catalog</title>
+<style>
+  body { font-family: -apple-system, Helvetica, Arial, sans-serif; max-width: 960px; margin: 2rem auto; color: #111; }
+  h1 { font-size: 1.4rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1rem; font-size: 0.85rem; }
+  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+  th { background: #f2f2f2; }
+  .controls { margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center; }
+  button { padding: 4px 10px; cursor: pointer; }
+  .summary { margin-top: 1.5rem; }
+  .corrupt { color: #a33; }
+</style>
+</head>
+<body>
+<h1>Quantum Measurement Catalog</h1>
+<p>Legacy measurement runs cataloged from real IBM Quantum device calibration data.</p>
+
+<div class="controls">
+  <button id="scanBtn">Re-scan data directory</button>
+  <span id="scanStatus"></span>
+  <select id="deviceFilter"><option value="">All devices</option></select>
+</div>
+
+<div class="summary">
+  <h2>Per-device summary</h2>
+  <table id="summaryTable">
+    <thead><tr><th>Device</th><th>Runs</th><th>Avg fidelity proxy</th><th>T1 (us)</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div>
+  <h2>Runs</h2>
+  <table id="runsTable">
+    <thead><tr><th>Run ID</th><th>Timestamp</th><th>Device</th><th>Circuit</th><th>Shots</th><th>Fidelity proxy</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div>
+  <h2 class="corrupt">Flagged for archiving (corrupt files)</h2>
+  <table id="corruptTable">
+    <thead><tr><th>File</th><th>Error</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+async function loadSummary() {
+  const res = await fetch('/devices/summary');
+  const rows = await res.json();
+  const tbody = document.querySelector('#summaryTable tbody');
+  tbody.innerHTML = '';
+  const select = document.querySelector('#deviceFilter');
+  select.innerHTML = '<option value="">All devices</option>';
+  for (const r of rows) {
+    tbody.innerHTML += `<tr><td>${r.device_name}</td><td>${r.run_count}</td><td>${r.avg_fidelity}</td><td>${r.min_t1_us}</td></tr>`;
+    select.innerHTML += `<option value="${r.device_name}">${r.device_name}</option>`;
+  }
+}
+
+async function loadRuns() {
+  const device = document.querySelector('#deviceFilter').value;
+  const url = device ? `/runs?device_name=${device}&limit=50` : '/runs?limit=50';
+  const res = await fetch(url);
+  const rows = await res.json();
+  const tbody = document.querySelector('#runsTable tbody');
+  tbody.innerHTML = '';
+  for (const r of rows) {
+    tbody.innerHTML += `<tr><td>${r.run_id}</td><td>${r.timestamp ?? ''}</td><td>${r.device_name ?? ''}</td><td>${r.circuit_type ?? ''}</td><td>${r.shots}</td><td>${r.fidelity_estimate}</td></tr>`;
+  }
+}
+
+async function loadCorrupt() {
+  const res = await fetch('/corrupt-files');
+  const rows = await res.json();
+  const tbody = document.querySelector('#corruptTable tbody');
+  tbody.innerHTML = '';
+  for (const r of rows) {
+    tbody.innerHTML += `<tr><td>${r.source_file}</td><td>${r.error}</td></tr>`;
+  }
+}
+
+document.querySelector('#scanBtn').addEventListener('click', async () => {
+  document.querySelector('#scanStatus').textContent = 'scanning...';
+  const res = await fetch('/scan', { method: 'POST' });
+  const report = await res.json();
+  document.querySelector('#scanStatus').textContent =
+    `scanned ${report.files_scanned} files, cataloged ${report.runs_cataloged}, ${report.corrupt_files} corrupt, ${report.duration_seconds}s`;
+  await Promise.all([loadSummary(), loadRuns(), loadCorrupt()]);
+});
+
+document.querySelector('#deviceFilter').addEventListener('change', loadRuns);
+
+loadSummary();
+loadRuns();
+loadCorrupt();
+</script>
+</body>
+</html>

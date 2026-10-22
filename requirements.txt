@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pytest
+httpx
+flake8
+psutil
+pympler
+diskcache
+numpy
+scipy
+matplotlib
+qiskit
+qiskit-aer
+qiskit-ibm-runtime

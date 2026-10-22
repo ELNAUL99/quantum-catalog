@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data/runs/
+data/cache/
+data/catalog.db
+.pytest_cache/
+.claude/settings.local.json
