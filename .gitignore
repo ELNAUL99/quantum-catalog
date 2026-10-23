@@ -5,3 +5,4 @@ data/cache/
 data/catalog.db
 .pytest_cache/
 .claude/settings.local.json
+.venv/

@@ -162,6 +162,17 @@ def _init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _connect(db_path: Path) -> sqlite3.Connection:
+    """Open a connection and guarantee the schema exists. The read paths
+    can be hit before any scan has run (e.g. the dashboard loading on a
+    fresh checkout, before the first POST /scan), so every connection
+    ensures the tables exist rather than assuming scan() created them."""
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    _init_db(conn)
+    return conn
+
+
 @dataclass
 class ScanReport:
     files_scanned: int
@@ -201,8 +212,7 @@ def scan(data_dir: Optional[Path] = None, db_path: Optional[Path] = None, max_wo
     # we build during a scan, the full list of parsed runs.
     parser_object_kb = asizeof.asizeof(parsed_runs) / 1024
 
-    conn = sqlite3.connect(db_path)
-    _init_db(conn)
+    conn = _connect(db_path)
     conn.execute("DELETE FROM runs")
     conn.execute("DELETE FROM corrupt_files")
 
@@ -245,7 +255,7 @@ def scan(data_dir: Optional[Path] = None, db_path: Optional[Path] = None, max_wo
 def query_runs(db_path: Optional[Path] = None, device_name: Optional[str] = None,
                circuit_type: Optional[str] = None, limit: int = 100) -> list[dict]:
     db_path = db_path if db_path is not None else DB_PATH
-    conn = sqlite3.connect(db_path)
+    conn = _connect(db_path)
     conn.row_factory = sqlite3.Row
     sql = "SELECT * FROM runs WHERE 1=1"
     params: list = []
@@ -267,7 +277,7 @@ def device_summary(db_path: Optional[Path] = None) -> list[dict]:
     real T1 range seen for that device, the kind of query a calibration
     drift dashboard would run first."""
     db_path = db_path if db_path is not None else DB_PATH
-    conn = sqlite3.connect(db_path)
+    conn = _connect(db_path)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         """
@@ -287,7 +297,7 @@ def device_summary(db_path: Optional[Path] = None) -> list[dict]:
 
 def get_run(run_id: str, db_path: Optional[Path] = None) -> Optional[dict]:
     db_path = db_path if db_path is not None else DB_PATH
-    conn = sqlite3.connect(db_path)
+    conn = _connect(db_path)
     conn.row_factory = sqlite3.Row
     row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
     conn.close()
@@ -296,7 +306,7 @@ def get_run(run_id: str, db_path: Optional[Path] = None) -> Optional[dict]:
 
 def corrupt_files(db_path: Optional[Path] = None) -> list[dict]:
     db_path = db_path if db_path is not None else DB_PATH
-    conn = sqlite3.connect(db_path)
+    conn = _connect(db_path)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("SELECT * FROM corrupt_files").fetchall()
     conn.close()

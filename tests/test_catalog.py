@@ -132,6 +132,18 @@ def test_scan_builds_catalog_and_flags_corrupt(run_dir, tmp_path):
     assert corrupt[0]["source_file"] == "run_b.json"
 
 
+def test_reads_on_unscanned_db_return_empty(tmp_path):
+    # The dashboard (and any client) can hit the read endpoints before the
+    # first scan has run, against a DB whose schema does not exist yet.
+    # Reads must create the empty schema and return nothing, not raise
+    # sqlite3.OperationalError: no such table.
+    db_path = tmp_path / "fresh.db"
+    assert catalog.query_runs(db_path=db_path) == []
+    assert catalog.device_summary(db_path=db_path) == []
+    assert catalog.corrupt_files(db_path=db_path) == []
+    assert catalog.get_run("missing", db_path=db_path) is None
+
+
 def test_query_runs_filters_by_device(tmp_path):
     db_path = tmp_path / "catalog.db"
     run_dir2 = tmp_path / "runs2"
